@@ -1,0 +1,14 @@
+image:
+  file: .gitpod.Dockerfile
+
+tasks:
+- name: Install oc
+  command: |
+        tar -zxvf ${GITPOD_REPO_ROOT}/openshift-client-linux-amd64-rhel9-4.18.5.tar.gz -C /tmp
+        sudo mv /tmp/kubectl /usr/local/bin/kubectl
+        sudo mv /tmp/oc /usr/local/bin/oc
+        /usr/local/bin/oc completion bash > oc_bash_completion
+        sudo mv oc_bash_completion /etc/bash_completion.d/
+        source /etc/bash_completion.d/oc_bash_completion
+        clear
+
