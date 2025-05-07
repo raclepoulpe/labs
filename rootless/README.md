@@ -1,10 +1,10 @@
-Sécurisation des Conteneurs : Focus sur l'approche Rootless
+# Sécurisation des Conteneurs : Focus sur l'approche Rootless
 
 **Public cible :** Étudiants en informatique
 
 **Durée totale estimée :** 2 heures 45 minutes - 3 heures 15 minutes
 
-# Objectifs du cours
+## Objectifs du cours
 
 - Comprendre les enjeux de la sécurité des conteneurs.
 - Identifier les risques liés à l'exécution de conteneurs en tant que root.
@@ -13,27 +13,36 @@ Sécurisation des Conteneurs : Focus sur l'approche Rootless
 - Comprendre les limitations et les considérations spécifiques lors de l'utilisation de conteneurs rootless.
 - Être informé des étapes pour construire des images rootless.
 
-# I. Introduction à la Sécurité des Conteneurs (environ 25 minutes)
+## I. Introduction à la Sécurité des Conteneurs (environ 25 minutes)
 
 Bienvenue à la première partie de notre cours dédié à la sécurisation des conteneurs. Avant de plonger dans le vif du sujet, il est essentiel de bien comprendre les fondations sur lesquelles repose cette technologie et les défis de sécurité qu'elle soulève.
 
 - **Rappel des concepts de base des conteneurs (environ 7 minutes) :** Commençons par un petit rappel. Qu'est-ce qu'un conteneur, fondamentalement ? C'est un environnement isolé qui regroupe une application et toutes ses dépendances. Pensez-y comme à une bulle logicielle autonome. Pour réaliser cette isolation, le noyau Linux utilise des mécanismes appelés **namespaces**. Vous devez connaître les principaux : le **PID namespace** pour l'isolation des identifiants de processus, le **Network namespace** pour l'isolation du réseau, le **Mount namespace** pour l'isolation du système de fichiers, l'**UTS namespace** pour l'isolation du nom d'hôte, l'**IPC namespace** pour l'isolation des communications inter-processus, et enfin, celui qui nous intéressera particulièrement plus tard, l'**User namespace**.  
-    <br/>En parallèle de l'isolation, nous avons les **cgroups**, ou Control Groups. Ils permettent de limiter et de contrôler l'utilisation des ressources par les conteneurs : CPU, mémoire, entrées/sorties disque, etc. C'est crucial pour éviter qu'un conteneur ne monopolise les ressources de l'hôte.  
-    <br/>Et n'oublions pas que tout conteneur est créé à partir d'une **image**. Cette image est un modèle statique contenant tout le nécessaire pour exécuter l'application. La sécurité commence dès la source de ces images.  
+    En parallèle de l'isolation, nous avons les **cgroups**, ou Control Groups. Ils permettent de limiter et de contrôler l'utilisation des ressources par les conteneurs : CPU, mémoire, entrées/sorties disque, etc. C'est crucial pour éviter qu'un conteneur ne monopolise les ressources de l'hôte.  
+    Et n'oublions pas que tout conteneur est créé à partir d'une **image**. Cette image est un modèle statique contenant tout le nécessaire pour exécuter l'application. La sécurité commence dès la source de ces images.  
     Exemple de Dockerfile montrant la création d'une image avec des couches (layers) :
+
+Fichier Dockerfile-ubunutu-nginx :
 
 ```dockerfile
 FROM ubuntu:latest  
 RUN apt-get update && apt-get install -y nginx  
-COPY index.html /var/www/html/  
+COPY www/index.html /var/www/html/  
 EXPOSE 80  
-CMD \["nginx", "-g", "daemon off;"\]
+CMD ["nginx", "-g", "daemon off;"]
 ```
 
 Exemple de commande pour exécuter un conteneur en spécifiant les ressources (cgroups) :
 
 ```shell
-docker run -it --cpu-shares 512 --memory 512m my-nginx-image
+docker build -t mynginx:ubuntu-1 --file Dockerfile-ubunutu-nginx .
+docker run -d --name mynginx --cpu-shares 512 --memory 512m -p 8080:80 mynginx:ubuntu-1
+```
+
+Comparaison avec l'image officielle proposée par Nginx: 
+
+```shell
+docker run -d --name mynginx-official --cpu-shares 512 --memory 512m -p 8081:80 -v ./www:/usr/share/nginx/html nginx
 ```
 
 - **Les enjeux de la sécurité des conteneurs (environ 7 minutes) :** Pourquoi devons-nous nous soucier de la sécurité de ces conteneurs ? Plusieurs aspects sont critiques :  
@@ -69,7 +78,7 @@ spec:
         app: my-app
 ```
 
-# II. Le Concept de Conteneurs Rootless (environ 40 minutes)
+## II. Le Concept de Conteneurs Rootless (environ 40 minutes)
 
 Maintenant que nous avons posé les bases, entrons dans le vif du sujet : les conteneurs rootless. C'est une approche élégante pour renforcer la sécurité en s'attaquant directement au problème des privilèges root.
 
@@ -126,12 +135,12 @@ USER myuser
 CMD \["./myapp"\]
 ```
 
-# III. Mise en Pratique sur OpenShift 4.18 (environ 75 minutes)
+## III. Mise en Pratique sur OpenShift 4.18 (environ 75 minutes)
 
 Passons maintenant à la partie concrète. Nous allons explorer comment OpenShift 4.18 nous permet de travailler avec des concepts proches du rootless grâce à ses Security Context Constraints (SCC).
 
 - **Prérequis (annoncé précédemment)**  
-    
+
 - **Exploration des Security Context Constraints (SCC) (environ 10 minutes) :** Les SCC sont des objets Kubernetes spécifiques à OpenShift qui définissent les permissions et les capacités qu'un pod peut demander et utiliser. Elles agissent comme des politiques de sécurité au niveau du cluster. Nous allons nous concentrer sur deux SCC importantes pour notre sujet :  
     1. **restricted** : C'est la SCC par défaut et la plus sécurisée. Elle interdit l'exécution en tant qu'UID 0 sur l'hôte, bloque l'escalade de privilèges et limite les capacités Linux disponibles.
     2. **nonroot** : Cette SCC est spécifiquement conçue pour les pods qui doivent s'exécuter en tant qu'utilisateur non-root. Elle exige que runAsNonRoot: true soit spécifié dans le securityContext du pod et que l'UID du conteneur soit différent de zéro.
@@ -207,7 +216,7 @@ spec:
         image: nginx:latest
 ```
 
-- **Exercice 3 (Obligatoire) : Déploiement avec le SCC nonroot et création d'une image non-root (simulation et discussion) (environ 20 minutes)** : 
+- **Exercice 3 (Obligatoire) : Déploiement avec le SCC nonroot et création d'une image non-root (simulation et discussion) (environ 20 minutes)** :
     1. **Partie A : Tentative de déploiement d'une image standard avec la SCC nonroot :** Modifiez le fichier nginx-restricted.yaml pour ajouter l'annotation security.openshift.io/scc: nonroot dans la section metadata du template. Appliquez la modification et observez l'échec du pod. Analysez les événements avec oc describe pod &lt;nom-du-pod&gt;. Vous devriez voir des erreurs liées au non-respect des exigences de la SCC nonroot (absence de runAsNonRoot: true ou tentative d'exécution en tant que root dans l'image).
     2. **Partie B : Discussion sur la création d'une image non-root :** Présentez l'exemple de Dockerfile pour une image non-root (comme montré précédemment). Expliquez l'importance de l'instruction USER et de la gestion des permissions. Soulignez que pour que la SCC nonroot soit pleinement respectée, l'image elle-même doit être conçue pour fonctionner avec un utilisateur non-root.
 
@@ -227,7 +236,7 @@ spec:
 # ...
 ```
 
-# IV. Limitations et Considérations (environ 20 minutes)
+## IV. Limitations et Considérations (environ 20 minutes)
 
 L'adoption des conteneurs rootless est une avancée significative en matière de sécurité, mais elle vient avec son lot de considérations pratiques.
 
@@ -262,7 +271,7 @@ spec:
 - **Accès aux ressources hôtes (environ 5 minutes) :** L'accès à certaines ressources de l'hôte (périphériques, certaines fonctionnalités du noyau) peut être plus complexe en mode rootless et nécessiter des configurations spécifiques au niveau du moteur de conteneur et des SCC dans OpenShift pour garantir la sécurité.
 - **Performances (environ 5 minutes) :** Dans certains cas très spécifiques impliquant des opérations d'E/S intensives, une légère surcharge de performance pourrait être observée avec les conteneurs rootless en raison de l'abstraction des User Namespaces. Cependant, pour la majorité des applications, l'impact est minime. Il est toujours bon de tester vos applications dans un environnement rootless pour valider les performances.
 
-# V. Conclusion et Ressources (environ 15 minutes)
+## V. Conclusion et Ressources (environ 15 minutes)
 
 Pour conclure notre session, récapitulons les points essentiels et indiquons quelques pistes pour continuer votre apprentissage.
 
